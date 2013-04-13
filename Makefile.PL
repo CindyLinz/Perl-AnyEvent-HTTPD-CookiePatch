@@ -18,8 +18,9 @@ WriteMakefile(
         'Test::More' => 0,
     },
     PREREQ_PM => {
-        #'ABC'              => 1.6,
-        #'Foo::Bar::Module' => 5.0401,
+        version => 0,
+        'AnyEvent::HTTPD' => 0,
+        'AnyEvent::HTTPD::SendMultiHeaderPatch' => 0,
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'AnyEvent-HTTPD-CookiePatch-*' },

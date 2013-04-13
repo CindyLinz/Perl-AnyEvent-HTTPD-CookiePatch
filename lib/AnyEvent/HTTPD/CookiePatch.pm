@@ -6,7 +6,8 @@ use warnings FATAL => 'all';
 
 =head1 NAME
 
-AnyEvent::HTTPD::CookiePatch - The great new AnyEvent::HTTPD::CookiePatch!
+AnyEvent::HTTPD::CookiePatch -
+    Patch of AnyEvent::HTTPD for cookie support
 
 =head1 VERSION
 
@@ -14,86 +15,101 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.01';
+use version;
+our $VERSION = 'v0.1.0';
 
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+    # by module injection
+    use AnyEvent::HTTPD::CookiePatch qw(inject);
 
-Perhaps a little code snippet.
-
+    # or by inheritance
     use AnyEvent::HTTPD::CookiePatch;
+    my $httpd = AnyEvent::HTTPD->new( request_class => 'AnyEvent::HTTPD::CookiePatch' );
 
-    my $foo = AnyEvent::HTTPD::CookiePatch->new();
-    ...
+    # and then in your handler
+    sub {
+        my($httpd, $req) = @_;
 
-=head1 EXPORT
+        # get cookie
+        my $cookie_a = $req->cookie('a');
 
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
+        # set cookie
+        $req->cookie('a', 'a_value');
+        # or with other cookie parameters
+        $req->cookie('b', 'b_value', 10*60, '/', '.example.com');
 
-=head1 SUBROUTINES/METHODS
+        # then add the cookie header when respond
+        $req->respond(200, 'OK', {
+            ...
+            'set-cookie' => $req->{_set_cookie},
+            ...
+        }, "html...");
+    }
 
-=head2 function1
+=head1 METHODS
+
+=head2 $value = $req->cookie($name)
+
+    Get the cookie
+
+=head2 $req->cookie($name, $value[, $max_age[, $path[, $domain]]])
+
+    Set the cookie
+
+=head2 $req->{_set_cookie}
+
+    The response header field Set-Cookie's value
 
 =cut
 
-sub function1 {
+use AnyEvent::HTTPD::SendMultiHeaderPatch;
+our @ISA = 'AnyEvent::HTTPD::Request';
+
+sub cookie {
+    my($req, $name, $value, $max_age, $path, $domain) = @_;
+    if( defined $value ) { # set cookie
+        my $fragment = "$name=$value";
+        $fragment .= "; Max-Age=$max_age" if( defined $max_age );
+        $fragment .= "; Path=$path" if( defined $path );
+        $fragment .= "; Domain=$domain" if( defined $domain );
+        if( exists $req->{_set_cookie} ) {
+            $req->{_set_cookie} .= "\0$fragment";
+        }
+        else {
+            $req->{_set_cookie} = $fragment;
+        }
+    }
+    else { # get cookie
+        if( !$req->{_cookie} ) {
+            my $cookie_header = $req->headers->{cookie};
+            my %cookie;
+            while( $cookie_header =~ / *([^ =]+)\s*=\s*([^ ;]*)\s*;?/g ) {
+                $cookie{$1} = $2;
+            }
+            $req->{_cookie} = \%cookie;
+        }
+        return $req->{_cookie}{$name};
+    }
 }
 
-=head2 function2
-
-=cut
-
-sub function2 {
+sub import {
+    if( grep { $_ eq 'inject' } @_ ) {
+        *AnyEvent::HTTPD::Request::cookie = \&cookie;
+    }
 }
+
+=head1 CAVEATS
+
+This module use module L<AnyEvent::HTTPD::SendMultiHeaderPatch> (a hack)
+for sending multiple Set-Cookie response header.
 
 =head1 AUTHOR
 
 Cindy Wang (CindyLinz)
 
-=head1 BUGS
-
-Please report any bugs or feature requests to C<bug-anyevent-httpd-cookiepatch at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=AnyEvent-HTTPD-CookiePatch>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
-
-
-
-
-=head1 SUPPORT
-
-You can find documentation for this module with the perldoc command.
-
-    perldoc AnyEvent::HTTPD::CookiePatch
-
-
-You can also look for information at:
-
-=over 4
-
-=item * RT: CPAN's request tracker (report bugs here)
-
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=AnyEvent-HTTPD-CookiePatch>
-
-=item * AnnoCPAN: Annotated CPAN documentation
-
-L<http://annocpan.org/dist/AnyEvent-HTTPD-CookiePatch>
-
-=item * CPAN Ratings
-
-L<http://cpanratings.perl.org/d/AnyEvent-HTTPD-CookiePatch>
-
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/AnyEvent-HTTPD-CookiePatch/>
-
-=back
-
-
 =head1 ACKNOWLEDGEMENTS
-
 
 =head1 LICENSE AND COPYRIGHT
 
